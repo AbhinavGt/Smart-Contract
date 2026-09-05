@@ -1,0 +1,13 @@
+llm:
+  backend: ollama
+  model: deepseek-coder
+  base_url: http://localhost:11434
+  timeout_seconds: 60
+rag:
+  top_k: 3
+  embedding_model: all-MiniLM-L6-v2
+  persist_directory: chroma_db
+solidity:
+  compiler_version: "0.8.20"
+agent:
+  max_loops: 3

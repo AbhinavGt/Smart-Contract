@@ -1,0 +1,2 @@
+# Reentrancy
+Reentrancy occurs when a contract makes an external call before finishing its own state update, allowing the callee to call back into the contract. The classic withdrawal bug sends funds before reducing a balance. Prefer checks-effects-interactions, update accounting before calling out, and consider a well-tested reentrancy guard. Cross-function and read-only reentrancy also deserve review.

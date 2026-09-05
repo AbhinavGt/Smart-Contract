@@ -1,0 +1,98 @@
+[
+  {
+    "id": "5186c7ab1fa450c23a02e1deadba2123b08e59e3",
+    "text": "# Missing access control State-changing administrative functions must restrict callers and validate privileged transitions. Missing modifiers, public initializers, or an owner setter without authorization can let anyone seize control or drain funds. Define roles, protect every privileged entry point, and test unauthorized calls.",
+    "source": "access-control.md",
+    "chunk": 0
+  },
+  {
+    "id": "170a80e351b80319fda85c8e7e5f8bea50fc3c3b",
+    "text": "# DAO-style exploit lessons The DAO incident combined a recursive callback with balance accounting performed too late. Each callback withdrew against the unchanged balance, draining funds until gas or liquidity stopped the recursion. The durable lesson is to update effects before interactions and to keep external calls narrowly scoped.",
+    "source": "dao-hack-writeup.md",
+    "chunk": 0
+  },
+  {
+    "id": "626d156912cb2d328be6adf4a7129d2d4a02c0aa",
+    "text": "# Denial of service Unbounded loops, failed external calls, and attacker-controlled recipients can make a function unusable or consume excessive gas. Avoid iterating over growing storage, isolate payouts, and use pull-based patterns with bounded work.",
+    "source": "denial-of-service.md",
+    "chunk": 0
+  },
+  {
+    "id": "e35af76613af933d89a2a8c5116feea36d68c07a",
+    "text": "# Front-running and transaction ordering Pending transactions expose parameters and intent before confirmation. A trader or bot can submit a competing transaction with a higher fee, capturing an opportunity or changing ordering. Commit-reveal schemes, slippage limits, deadlines, and private order flow can reduce this risk.",
+    "source": "front-running.md",
+    "chunk": 0
+  },
+  {
+    "id": "73d06bd48d0fc0a86bfd26b9fb7b14fcb70d09fa",
+    "text": "# Precision loss Integer division truncates, and multiplying after dividing can discard significant value. Attackers may exploit rounding in exchanges or share accounting. Choose operation order carefully, use fixed-point helpers, and define rounding direction explicitly.",
+    "source": "precision-loss.md",
+    "chunk": 0
+  },
+  {
+    "id": "86dae944c5d72dcf2546d9a24607a09a6012d820",
+    "text": "# Signature replay A valid signed message can be reused if it lacks a nonce, chain identifier, expiry, or contract domain. Include a consumed nonce and EIP-712 domain separation, and invalidate signatures after use.",
+    "source": "signature-replay.md",
+    "chunk": 0
+  },
+  {
+    "id": "75ea319d77d8348bb3175dc13648412cbc7dadc9",
+    "text": "# Proxy storage collision Proxy and implementation contracts must agree on storage slot order. Adding or reordering variables can overwrite an owner or balance when delegatecalled. Use established proxy standards, reserved gaps, and upgrade layout checks.",
+    "source": "storage-collision.md",
+    "chunk": 0
+  },
+  {
+    "id": "043161ca063c299e21373641146edd5ec89cd8d7",
+    "text": "# Integer overflow and underflow Arithmetic outside the representable range wraps in older Solidity versions. A balance can become enormous after subtracting too much, or a counter can wrap to zero. Solidity 0.8 and newer revert by default, but unchecked blocks and legacy code still need explicit bounds checks or safe arithmetic.",
+    "source": "swc-101-integer-overflow.md",
+    "chunk": 0
+  },
+  {
+    "id": "cb4a773930130b27db0f57fd6a5cddc8743620b8",
+    "text": "# Unchecked external call return value Low-level call, delegatecall, and send return a success flag instead of automatically reverting. Ignoring it can make the caller report success while an operation failed, leaving accounting inconsistent. Check the boolean and revert or compensate on failure; use safe transfer abstractions where appropriate.",
+    "source": "swc-104-unchecked-call.md",
+    "chunk": 0
+  },
+  {
+    "id": "f509213c83e61b4e4860fe568a77ad973a6f8331",
+    "text": "# Reentrancy Reentrancy occurs when a contract makes an external call before finishing its own state update, allowing the callee to call back into the contract. The classic withdrawal bug sends funds before reducing a balance. Prefer checks-effects-interactions, update accounting before calling out, and consider a well-tested reentrancy guard. Cross-function and read-only reentrancy also deserve review.",
+    "source": "swc-107-reentrancy.md",
+    "chunk": 0
+  },
+  {
+    "id": "774b14be652aa2ee7f9607b1905901c38ad96c20",
+    "text": "# tx.origin authentication Using tx.origin for authorization lets a malicious intermediary contract trick an owner into making a call. The origin remains the wallet even though msg.sender is the intermediary. Use msg.sender and explicit roles, ideally through a standard access-control design.",
+    "source": "swc-115-tx-origin.md",
+    "chunk": 0
+  },
+  {
+    "id": "ccd2c48f8c06e26579baedc2129ad480a7aef8f6",
+    "text": "# Block number as time or randomness Block numbers vary with network conditions and are not a reliable wall clock or unpredictable random source. Protocol logic that assumes a fixed block interval can drift. Use explicit elapsed-time tolerances and secure randomness where needed.",
+    "source": "swc-116-block-number.md",
+    "chunk": 0
+  },
+  {
+    "id": "e3e6fd5f7495f4897dbe7a51588e8df1367b19a7",
+    "text": "# Timestamp dependence Block timestamps are chosen by validators within practical limits and should not be treated as a secure source of randomness or an exact clock. Timestamp-based lotteries and narrow deadlines can be biased or unexpectedly triggered. Use a verifiable randomness source and tolerant time windows.",
+    "source": "timestamp-dependence.md",
+    "chunk": 0
+  },
+  {
+    "id": "91f85317880f06f86521ccb1804521b9460251cb",
+    "text": "# Uninitialized storage A storage pointer declared without an explicit location can write to an unintended slot in vulnerable compiler versions. Initialize references deliberately and compile with a current Solidity compiler. Review constructors and proxy initialization separately.",
+    "source": "uninitialized-storage.md",
+    "chunk": 0
+  },
+  {
+    "id": "85c2f6c9e9519b0f4f56acc50d280398e751fb29",
+    "text": "# Unsafe delegatecall Delegatecall executes another contract's code with the caller's storage and balance. An untrusted or upgradeable target can overwrite ownership, balances, or implementation pointers. Restrict targets, validate upgrades, and document storage layouts.",
+    "source": "unsafe-delegatecall.md",
+    "chunk": 0
+  },
+  {
+    "id": "0530bf687d326e514537b7f80336dbf5d558a336",
+    "text": "# Weak randomness Blockhash, timestamp, difficulty, and sender-controlled values are observable or influenceable by participants. They are unsuitable for prizes, NFT traits, or winner selection. Use a verifiable random function or a trusted commit-reveal protocol.",
+    "source": "weak-randomness.md",
+    "chunk": 0
+  }
+]
