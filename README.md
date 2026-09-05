@@ -95,7 +95,6 @@ agent:
 Python 3.10 or newer is recommended.
 
 ```bash
-cd /home/a8hi9t/Work/smart-contract
 python -m pip install -r requirements.txt
 ```
 
