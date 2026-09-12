@@ -7,7 +7,10 @@ from typing import Any, Callable
 
 from .llm import AnthropicClient, DeterministicLLMClient, LLMClient, OllamaClient
 from .llm.llm_client import config_value
-from .prompts import build_critique_prompt, build_explanation_prompt
+from .prompts import (
+    build_critique_prompt,
+    build_explanation_prompt,
+)
 from .rag.retriever import retrieve
 from .report.formatter import format_report
 from .static_analysis import run_slither
@@ -34,7 +37,14 @@ def load_config(path: str | Path = "config.yaml") -> dict[str, Any]:
                 result[stripped[:-1]] = section
             elif section is not None and ":" in stripped:
                 key, value = (part.strip() for part in stripped.split(":", 1))
-                section[key] = value.split("#", 1)[0].strip().strip('"\'')
+                scalar = value.split("#", 1)[0].strip().strip('"\'')
+                if scalar.lower() in {"true", "false"}:
+                    section[key] = scalar.lower() == "true"
+                else:
+                    try:
+                        section[key] = int(scalar)
+                    except ValueError:
+                        section[key] = scalar
         return result
 
 
@@ -85,6 +95,7 @@ def fetch_additional_context(
     top_k: int = 3,
     persist_directory: str | Path = "chroma_db",
     embedding_model: str = "all-MiniLM-L6-v2",
+    collection: str = "vuln_knowledge",
 ) -> str:
     """Fetch read-only context requested by the critic."""
     source = Path(filepath).read_text(encoding="utf-8")
@@ -94,7 +105,7 @@ def fetch_additional_context(
         try:
             results = retriever(
                 topic, k=top_k, persist_directory=persist_directory,
-                embedding_model=embedding_model,
+                embedding_model=embedding_model, collection=collection,
             )
         except TypeError:
             results = retriever(topic, top_k)
@@ -123,14 +134,19 @@ def explain_finding_with_critic(
     retriever: Callable[..., list[str]] = retrieve,
     persist_directory: str | Path = "chroma_db",
     embedding_model: str = "all-MiniLM-L6-v2",
+    collection: str = "vuln_knowledge",
+    explanation_prompt_builder: Callable[..., str] = build_explanation_prompt,
+    critique_prompt_builder: Callable[..., str] = build_critique_prompt,
 ) -> tuple[str, bool, int]:
     """Generate and adapt an explanation using a bounded critic loop."""
     if max_loops < 0:
         raise ValueError("max_loops must be non-negative")
-    explanation = llm.generate(build_explanation_prompt(code_snippet, finding, retrieved_context))
+    explanation = llm.generate(
+        explanation_prompt_builder(code_snippet, finding, retrieved_context)
+    )
     for loop_number in range(1, max_loops + 1):
         verdict, _reason, missing = parse_critique(
-            llm.generate(build_critique_prompt(code_snippet, finding, explanation))
+            llm.generate(critique_prompt_builder(code_snippet, finding, explanation))
         )
         if verdict == "CONFIDENT":
             return explanation, True, loop_number
@@ -140,9 +156,12 @@ def explain_finding_with_critic(
             filepath, missing, finding=finding, retriever=retriever,
             top_k=len(retrieved_context) or 3,
             persist_directory=persist_directory, embedding_model=embedding_model,
+            collection=collection,
         )
         context = retrieved_context + ([extra] if extra else [])
-        explanation = llm.generate(build_explanation_prompt(code_snippet, finding, context))
+        explanation = llm.generate(
+            explanation_prompt_builder(code_snippet, finding, context)
+        )
     return explanation, False, max_loops
 
 
@@ -189,8 +208,99 @@ def analyze_contract_data(
         item["explanation"] = explanation
         item["confident"] = confident
         item["loops_used"] = loops_used
+        item.setdefault("type", item.get("check", "unknown"))
+        item.setdefault("function", item.get("function_name", "contract scope"))
         explained.append(item)
     return path.name, explained
+
+
+def run_security_agent(
+    filepath: str,
+    config_path: str | Path = "config.yaml",
+    *,
+    llm_client: LLMClient | None = None,
+    analyzer: Callable[[str], list[dict[str, Any]]] = run_slither,
+    retriever: Callable[..., list[str]] = retrieve,
+    progress: Callable[[str], None] | None = None,
+) -> list[dict[str, Any]]:
+    """Run the existing security agent and return its findings."""
+    _contract_name, findings = analyze_contract_data(
+        filepath,
+        config_path,
+        llm_client=llm_client,
+        analyzer=analyzer,
+        retriever=retriever,
+        progress=progress,
+    )
+    return findings
+
+
+def run_gas_agent(
+    filepath: str,
+    config_path: str | Path = "config.yaml",
+    *,
+    llm_client: LLMClient | None = None,
+    retriever: Callable[..., list[str]] = retrieve,
+    progress: Callable[[str], None] | None = None,
+) -> list[dict[str, Any]]:
+    """Run the independent gas agent."""
+    # Lazy import avoids a module cycle: gas_agent reuses critic helpers here.
+    from .agents.gas_agent import analyze_gas
+
+    return analyze_gas(
+        filepath,
+        config_path,
+        llm_client=llm_client,
+        retriever=retriever,
+        progress=progress,
+    )
+
+
+def merge_findings(
+    security_findings: list[dict[str, Any]],
+    gas_findings: list[dict[str, Any]],
+) -> dict[str, list[dict[str, Any]]]:
+    """Keep the two analysis domains separate for consumers and reports."""
+    return {"security": list(security_findings), "gas": list(gas_findings)}
+
+
+def orchestrate(
+    filepath: str,
+    config_path: str | Path = "config.yaml",
+    *,
+    llm_client: LLMClient | None = None,
+    analyzer: Callable[[str], list[dict[str, Any]]] = run_slither,
+    retriever: Callable[..., list[str]] = retrieve,
+    progress: Callable[[str], None] | None = None,
+    concurrent: bool | None = None,
+) -> dict[str, list[dict[str, Any]]]:
+    """Run security and gas agents and return findings by concern area."""
+    config = load_config(config_path)
+    if concurrent is None:
+        concurrent = bool(config_value(config, "pipeline", "concurrent", default=False))
+    if concurrent:
+        from concurrent.futures import ThreadPoolExecutor
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            security_future = executor.submit(
+                run_security_agent, filepath, config_path, llm_client=llm_client,
+                analyzer=analyzer, retriever=retriever, progress=progress,
+            )
+            gas_future = executor.submit(
+                run_gas_agent, filepath, config_path, llm_client=llm_client,
+                retriever=retriever, progress=progress,
+            )
+            return merge_findings(security_future.result(), gas_future.result())
+    return merge_findings(
+        run_security_agent(
+            filepath, config_path, llm_client=llm_client, analyzer=analyzer,
+            retriever=retriever, progress=progress,
+        ),
+        run_gas_agent(
+            filepath, config_path, llm_client=llm_client, retriever=retriever,
+            progress=progress,
+        ),
+    )
 
 
 def analyze_contract(
@@ -202,8 +312,9 @@ def analyze_contract(
     retriever: Callable[..., list[str]] = retrieve,
     progress: Callable[[str], None] | None = None,
 ) -> str:
-    """Analyze one Solidity file and return its Markdown security report."""
-    contract_name, findings = analyze_contract_data(
+    """Analyze one Solidity file and return Markdown (legacy API)."""
+    contract_name = Path(filepath).name
+    findings = orchestrate(
         filepath,
         config_path,
         llm_client=llm_client,

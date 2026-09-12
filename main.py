@@ -6,7 +6,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from src.pipeline import analyze_contract_data
+from src.pipeline import orchestrate
 from src.report.formatter import format_json, format_report
 from src.static_analysis import SlitherError
 
@@ -22,11 +22,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--config", default="config.yaml", help="YAML configuration path")
     args = parser.parse_args(argv)
     try:
-        contract_name, findings = analyze_contract_data(
+        findings = orchestrate(
             args.file,
             args.config,
             progress=lambda message: print(message, flush=True),
         )
+        contract_name = Path(args.file).name
         Path(args.output).write_text(format_report(contract_name, findings), encoding="utf-8")
         if args.json_output:
             Path(args.json_output).write_text(

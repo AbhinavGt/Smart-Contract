@@ -59,3 +59,52 @@ VERDICT: CONFIDENT or UNCERTAIN
 REASON: <one or two sentences>
 MISSING_CONTEXT: <what additional information, if any, would help verify this — e.g. "calling function" or "re-retrieve: integer overflow patterns" or "none">
 """
+
+
+def build_gas_explanation_prompt(
+    code_snippet: str, finding: dict[str, Any], retrieved_context: list[str] | str
+) -> str:
+    """Prompt used by the gas agent; kept separate from security reasoning."""
+    context = "\n\n".join(retrieved_context) if isinstance(retrieved_context, list) else retrieved_context
+    return f"""You are a Solidity gas-optimization auditor. A pattern detector found a possible gas inefficiency.
+
+Optimization type: {finding.get("type", finding.get("check", "unknown"))}
+Function: {finding.get("function_name", "contract scope")}
+Description: {finding.get("description", "")}
+
+Code:
+```solidity
+{code_snippet}
+```
+
+Relevant gas-optimization guidance:
+{context}
+
+Explain whether the pattern is real, its likely gas impact, and a concrete
+optimization that preserves behavior and security. Mention any trade-offs or
+manual review needed. Respond in structured markdown with:
+### Assessment
+### Gas impact
+### Suggested optimization
+"""
+
+
+def build_gas_critique_prompt(
+    code_snippet: str, finding: dict[str, Any], explanation: str
+) -> str:
+    return f"""You are reviewing a gas-optimization explanation against Solidity code.
+
+Original code:
+```solidity
+{code_snippet}
+```
+
+Detected gas pattern: {finding.get("type", finding.get("check", "unknown"))}
+Explanation:
+{explanation}
+
+Respond exactly:
+VERDICT: CONFIDENT or UNCERTAIN
+REASON: <one or two sentences>
+MISSING_CONTEXT: <"calling function", "re-retrieve: <topic>", or "none">
+"""

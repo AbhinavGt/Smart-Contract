@@ -1,0 +1,45 @@
+# Ground truth for the included single-file examples.
+# Matching rule (implemented in run_eval.py): type names are compared after
+# lower-case normalization and aliasing; function names must match exactly
+# when a label supplies one. A finding without a matching label is a false
+# positive, and every unmatched label is a false negative.
+- file: contracts/reentrancy_example.sol
+  expected_vulnerabilities:
+    - type: reentrancy
+      function: withdraw
+- file: contracts/access_control_example.sol
+  expected_vulnerabilities:
+    - type: access-control
+      function: setOwner
+- file: contracts/front_running_example.sol
+  expected_vulnerabilities:
+    - type: front-running
+      function: updatePrice
+- file: contracts/integer_overflow_example.sol
+  expected_vulnerabilities:
+    - type: integer-overflow
+      function: add
+- file: contracts/timestamp_example.sol
+  expected_vulnerabilities:
+    - type: timestamp-dependence
+      function: isLucky
+- file: contracts/tx_origin_example.sol
+  expected_vulnerabilities:
+    - type: tx-origin
+      function: withdraw
+- file: contracts/unchecked_call_example.sol
+  expected_vulnerabilities:
+    - type: unchecked-call
+      function: notify
+- file: contracts/gas_loop_example.sol
+  expected_vulnerabilities:
+    - type: costly-loop
+      function: notifyAll
+- file: contracts/clean_view_example.sol
+  expected_vulnerabilities: []
+- file: contracts/clean_array_loop_example.sol
+  expected_vulnerabilities: []
+- file: contracts/clean_storage_example.sol
+  expected_vulnerabilities: []
+- file: contracts/clean_example.sol
+  expected_vulnerabilities: []

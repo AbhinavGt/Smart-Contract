@@ -35,6 +35,7 @@ def retrieve(
     k: int = 3,
     persist_directory: str | Path = "chroma_db",
     embedding_model: str = "all-MiniLM-L6-v2",
+    collection: str = "vuln_knowledge",
 ) -> list[str]:
     """Return up to *k* relevant knowledge chunks; never requires optional packages."""
     if k <= 0:
@@ -44,9 +45,14 @@ def retrieve(
         import chromadb  # type: ignore
         from sentence_transformers import SentenceTransformer  # type: ignore
 
-        collection = chromadb.PersistentClient(path=str(persist)).get_collection("vuln_knowledge")
+        collection_obj = chromadb.PersistentClient(path=str(persist)).get_collection(collection)
         embedding = SentenceTransformer(embedding_model).encode([query]).tolist()
-        result = collection.query(query_embeddings=embedding, n_results=k)
+        result = collection_obj.query(query_embeddings=embedding, n_results=k)
         return [str(item) for item in (result.get("documents") or [[]])[0]]
     except Exception:
-        return _fallback(query, persist / "knowledge_index.json", k)
+        index_name = (
+            "knowledge_index.json"
+            if collection == "vuln_knowledge"
+            else f"knowledge_index_{collection}.json"
+        )
+        return _fallback(query, persist / index_name, k)

@@ -8,6 +8,8 @@ The project currently includes:
 
 - **V1:** Static analysis, RAG context retrieval, LLM explanations, and reports.
 - **V2:** A bounded agentic critic loop that reviews and improves explanations.
+- **V3:** Separate security and gas-optimization agents with grouped reports
+  and a labeled precision/recall evaluation harness.
 
 The tool reads contracts only. It does not automatically modify Solidity code.
 
@@ -26,7 +28,10 @@ Finding + relevant source lines
 RAG vulnerability knowledge retrieval
      |
      v
-LLM security explanation
+Security agent + gas-pattern agent
+     |
+     v
+Separate RAG contexts and LLM explanations
      |
      v
 V2 critic review and optional retry
@@ -115,8 +120,16 @@ Run this once after adding or changing documents in `knowledge_base/`:
 python -m src.rag.build_index
 ```
 
+Build the independent gas knowledge collection when gas guidance changes:
+
+```bash
+python -c "from src.rag.build_index import build_gas_index; print(build_gas_index())"
+```
+
 ChromaDB and SentenceTransformers are used when installed. If they are not
 available, the project uses a local JSON token-search fallback.
+Security retrieval uses `vuln_knowledge`; gas retrieval uses
+`vuln_knowledge_gas` and never mixes the two collections.
 
 ## Run the application
 
@@ -146,6 +159,23 @@ Generating explanations...
 Wrote report to report.md
 Wrote JSON report to report.json
 ```
+
+Reports contain separate **Security Findings** and **Gas Optimization
+Findings** sections. Structured callers can use
+`src.pipeline.orchestrate(path)`, which returns
+`{"security": [...], "gas": [...]}`. `analyze_contract(path)` remains a
+backwards-compatible Markdown API.
+
+Run the labeled evaluation (Slither/compiler availability is required for
+real findings):
+
+```bash
+python eval/run_eval.py
+```
+
+The evaluator uses a one-to-one matching rule: normalized finding type and,
+when provided, function name must both match. It prints overall and per-type
+precision, recall, and F1.
 
 ## LLM configuration
 
@@ -191,8 +221,11 @@ src/static_analysis.py  Slither integration
 src/rag/                Knowledge indexing and retrieval
 src/llm/                Ollama, Anthropic, and offline clients
 src/prompts.py          Explanation and critic prompts
-src/pipeline.py         V1 pipeline and V2 critic loop
+src/agents/gas_agent.py Gas pattern detector and gas critic loop
+src/pipeline.py         V1/V2 logic and V3 orchestrator
 src/report/             Markdown and JSON formatting
+knowledge_base_gas/     Gas optimization reference documents
+eval/                   Ground-truth labels and evaluation script
 main.py                 CLI entrypoint
 config.yaml             Runtime configuration
 ```
@@ -206,5 +239,6 @@ config.yaml             Runtime configuration
   multiple independent agents.
 - Findings marked for manual review still require a human auditor.
 - The tool does not apply automatic fixes.
-- Whole-project analysis, gas optimization, web UI, and automatic PR creation
-  are not implemented.
+- Whole-project analysis, automatic fixes, web UI, and automatic PR creation
+  are not implemented. Gas checks are intentionally heuristic and require
+  manual review for context-sensitive optimizations.
