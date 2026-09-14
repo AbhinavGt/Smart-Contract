@@ -95,6 +95,83 @@ agent:
   max_loops: 3
 ```
 
+## V3 implementation
+
+V3 adds a second specialized analysis path for gas efficiency and turns the
+project into a small multi-domain orchestrator.
+
+The security pipeline remains the same as V2, but the system now runs an
+additional gas-optimization agent in parallel or sequentially, depending on the
+configured pipeline mode.
+
+### Gas-analysis agent
+
+The gas agent is implemented in `src/agents/gas_agent.py` and uses source-level
+heuristics rather than a separate security detector pipeline. It detects common
+patterns such as:
+
+- costly storage-array loops
+- redundant storage reads
+- redundant storage writes
+- long `require` revert strings
+- poor struct packing
+
+Each gas finding is processed through the same bounded critic loop used by the
+security agent, with a separate gas knowledge base and a distinct prompt style.
+
+### Gas knowledge base
+
+A dedicated knowledge base lives in `knowledge_base_gas/` and is indexed to its
+own collection:
+
+- Security collection: `vuln_knowledge`
+- Gas collection: `vuln_knowledge_gas`
+
+This separation keeps gas guidance independent from vulnerability guidance and
+prevents cross-domain contamination in retrieval.
+
+### Orchestration design
+
+The orchestrator is implemented in `src/pipeline.py` and exposes:
+
+```python
+from src.pipeline import orchestrate
+
+result = orchestrate("contracts/reentrancy_example.sol")
+# result == {"security": [...], "gas": [...]}
+```
+
+This returns a structured result with two domains instead of a single flat list.
+The legacy `analyze_contract()` API still works and renders a combined Markdown
+report for backwards compatibility.
+
+### Grouped reporting
+
+The formatter now creates a report with clearly separated sections:
+
+- `## Security Findings`
+- `## Gas Optimization Findings`
+
+Each finding retains its confidence status from the v2 critic loop, and findings
+that remain uncertain are flagged as `⚠️ Needs manual review`.
+
+### Evaluation harness
+
+V3 also adds a labeled evaluation suite under `eval/`:
+
+- `eval/labeled_contracts.yaml`
+- `eval/run_eval.py`
+
+The evaluator compares predicted findings against ground truth and computes:
+
+- precision
+- recall
+- F1 score
+- per-vulnerability-type breakdown
+
+This gives the project a reproducible way to measure improvement over time,
+which is the key difference between a demo and a testable security tool.
+
 ## Installation
 
 Python 3.10 or newer is recommended.
