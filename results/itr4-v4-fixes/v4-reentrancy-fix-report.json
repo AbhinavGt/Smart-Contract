@@ -1,0 +1,475 @@
+{
+  "contract": "reentrancy_example.sol",
+  "findings": {
+    "security": [
+      {
+        "check": "reentrancy-eth",
+        "impact": "High",
+        "confidence": "Medium",
+        "description": "Reentrancy in ReentrancyExample.withdraw(uint256) (contracts/reentrancy_example.sol#6-11):\n\tExternal calls:\n\t- (ok,None) = msg.sender.call{value: amount}() (contracts/reentrancy_example.sol#8)\n\tState variables written after the call(s):\n\t- balances[msg.sender] -= amount (contracts/reentrancy_example.sol#10)\n\tReentrancyExample.balances (contracts/reentrancy_example.sol#4) can be used in cross function reentrancies:\n\t- ReentrancyExample.balances (contracts/reentrancy_example.sol#4)\n\t- ReentrancyExample.deposit() (contracts/reentrancy_example.sol#5)\n\t- ReentrancyExample.withdraw(uint256) (contracts/reentrancy_example.sol#6-11)\n",
+        "function_name": "withdraw",
+        "filename": "contracts/reentrancy_example.sol",
+        "lines": [
+          6,
+          7,
+          8,
+          9,
+          10,
+          11
+        ],
+        "raw": {
+          "elements": [
+            {
+              "type": "function",
+              "name": "withdraw",
+              "source_mapping": {
+                "start": 218,
+                "length": 252,
+                "filename_relative": "contracts/reentrancy_example.sol",
+                "filename_absolute": "/home/a8hi9t/Work/smart-contract/contracts/reentrancy_example.sol",
+                "filename_short": "contracts/reentrancy_example.sol",
+                "is_dependency": false,
+                "lines": [
+                  6,
+                  7,
+                  8,
+                  9,
+                  10,
+                  11
+                ],
+                "starting_column": 5,
+                "ending_column": 6
+              },
+              "type_specific_fields": {
+                "parent": {
+                  "type": "contract",
+                  "name": "ReentrancyExample",
+                  "source_mapping": {
+                    "start": 57,
+                    "length": 415,
+                    "filename_relative": "contracts/reentrancy_example.sol",
+                    "filename_absolute": "/home/a8hi9t/Work/smart-contract/contracts/reentrancy_example.sol",
+                    "filename_short": "contracts/reentrancy_example.sol",
+                    "is_dependency": false,
+                    "lines": [
+                      3,
+                      4,
+                      5,
+                      6,
+                      7,
+                      8,
+                      9,
+                      10,
+                      11,
+                      12
+                    ],
+                    "starting_column": 1,
+                    "ending_column": 2
+                  }
+                },
+                "signature": "withdraw(uint256)"
+              }
+            },
+            {
+              "type": "node",
+              "name": "(ok,None) = msg.sender.call{value: amount}()",
+              "source_mapping": {
+                "start": 336,
+                "length": 47,
+                "filename_relative": "contracts/reentrancy_example.sol",
+                "filename_absolute": "/home/a8hi9t/Work/smart-contract/contracts/reentrancy_example.sol",
+                "filename_short": "contracts/reentrancy_example.sol",
+                "is_dependency": false,
+                "lines": [
+                  8
+                ],
+                "starting_column": 9,
+                "ending_column": 56
+              },
+              "type_specific_fields": {
+                "parent": {
+                  "type": "function",
+                  "name": "withdraw",
+                  "source_mapping": {
+                    "start": 218,
+                    "length": 252,
+                    "filename_relative": "contracts/reentrancy_example.sol",
+                    "filename_absolute": "/home/a8hi9t/Work/smart-contract/contracts/reentrancy_example.sol",
+                    "filename_short": "contracts/reentrancy_example.sol",
+                    "is_dependency": false,
+                    "lines": [
+                      6,
+                      7,
+                      8,
+                      9,
+                      10,
+                      11
+                    ],
+                    "starting_column": 5,
+                    "ending_column": 6
+                  },
+                  "type_specific_fields": {
+                    "parent": {
+                      "type": "contract",
+                      "name": "ReentrancyExample",
+                      "source_mapping": {
+                        "start": 57,
+                        "length": 415,
+                        "filename_relative": "contracts/reentrancy_example.sol",
+                        "filename_absolute": "/home/a8hi9t/Work/smart-contract/contracts/reentrancy_example.sol",
+                        "filename_short": "contracts/reentrancy_example.sol",
+                        "is_dependency": false,
+                        "lines": [
+                          3,
+                          4,
+                          5,
+                          6,
+                          7,
+                          8,
+                          9,
+                          10,
+                          11,
+                          12
+                        ],
+                        "starting_column": 1,
+                        "ending_column": 2
+                      }
+                    },
+                    "signature": "withdraw(uint256)"
+                  }
+                }
+              },
+              "additional_fields": {
+                "underlying_type": "external_calls"
+              }
+            },
+            {
+              "type": "node",
+              "name": "balances[msg.sender] -= amount",
+              "source_mapping": {
+                "start": 433,
+                "length": 30,
+                "filename_relative": "contracts/reentrancy_example.sol",
+                "filename_absolute": "/home/a8hi9t/Work/smart-contract/contracts/reentrancy_example.sol",
+                "filename_short": "contracts/reentrancy_example.sol",
+                "is_dependency": false,
+                "lines": [
+                  10
+                ],
+                "starting_column": 9,
+                "ending_column": 39
+              },
+              "type_specific_fields": {
+                "parent": {
+                  "type": "function",
+                  "name": "withdraw",
+                  "source_mapping": {
+                    "start": 218,
+                    "length": 252,
+                    "filename_relative": "contracts/reentrancy_example.sol",
+                    "filename_absolute": "/home/a8hi9t/Work/smart-contract/contracts/reentrancy_example.sol",
+                    "filename_short": "contracts/reentrancy_example.sol",
+                    "is_dependency": false,
+                    "lines": [
+                      6,
+                      7,
+                      8,
+                      9,
+                      10,
+                      11
+                    ],
+                    "starting_column": 5,
+                    "ending_column": 6
+                  },
+                  "type_specific_fields": {
+                    "parent": {
+                      "type": "contract",
+                      "name": "ReentrancyExample",
+                      "source_mapping": {
+                        "start": 57,
+                        "length": 415,
+                        "filename_relative": "contracts/reentrancy_example.sol",
+                        "filename_absolute": "/home/a8hi9t/Work/smart-contract/contracts/reentrancy_example.sol",
+                        "filename_short": "contracts/reentrancy_example.sol",
+                        "is_dependency": false,
+                        "lines": [
+                          3,
+                          4,
+                          5,
+                          6,
+                          7,
+                          8,
+                          9,
+                          10,
+                          11,
+                          12
+                        ],
+                        "starting_column": 1,
+                        "ending_column": 2
+                      }
+                    },
+                    "signature": "withdraw(uint256)"
+                  }
+                }
+              },
+              "additional_fields": {
+                "underlying_type": "variables_written",
+                "variable_name": "balances"
+              }
+            }
+          ],
+          "description": "Reentrancy in ReentrancyExample.withdraw(uint256) (contracts/reentrancy_example.sol#6-11):\n\tExternal calls:\n\t- (ok,None) = msg.sender.call{value: amount}() (contracts/reentrancy_example.sol#8)\n\tState variables written after the call(s):\n\t- balances[msg.sender] -= amount (contracts/reentrancy_example.sol#10)\n\tReentrancyExample.balances (contracts/reentrancy_example.sol#4) can be used in cross function reentrancies:\n\t- ReentrancyExample.balances (contracts/reentrancy_example.sol#4)\n\t- ReentrancyExample.deposit() (contracts/reentrancy_example.sol#5)\n\t- ReentrancyExample.withdraw(uint256) (contracts/reentrancy_example.sol#6-11)\n",
+          "markdown": "Reentrancy in [ReentrancyExample.withdraw(uint256)](contracts/reentrancy_example.sol#L6-L11):\n\tExternal calls:\n\t- [(ok,None) = msg.sender.call{value: amount}()](contracts/reentrancy_example.sol#L8)\n\tState variables written after the call(s):\n\t- [balances[msg.sender] -= amount](contracts/reentrancy_example.sol#L10)\n\t[ReentrancyExample.balances](contracts/reentrancy_example.sol#L4) can be used in cross function reentrancies:\n\t- [ReentrancyExample.balances](contracts/reentrancy_example.sol#L4)\n\t- [ReentrancyExample.deposit()](contracts/reentrancy_example.sol#L5)\n\t- [ReentrancyExample.withdraw(uint256)](contracts/reentrancy_example.sol#L6-L11)\n",
+          "first_markdown_element": "contracts/reentrancy_example.sol#L6-L11",
+          "id": "d81a46c1215ccc5244f3d705836e82e1fbc68a63b4dbb35ada523f5a18305d96",
+          "check": "reentrancy-eth",
+          "impact": "High",
+          "confidence": "Medium",
+          "reference": "https://github.com/crytic/slither/wiki/Detector-Documentation#reentrancy-vulnerabilities-1"
+        },
+        "explanation": "### Assessment\nLikely true positive based on the static-analysis evidence; review the reported code path and any guards before deploying.\n\n### Risk\nAn attacker may trigger the affected path under unexpected conditions, potentially causing loss of funds or unauthorized state changes.\n\n### Exploit example\nAn adversary supplies crafted input or calls the function in an unsafe order to reach the flagged operation.\n\n### Suggested fix\nApply checks-effects-interactions, explicit access control, and safe validation appropriate to the detector, then add a regression test.\n",
+        "confident": false,
+        "loops_used": 1,
+        "type": "reentrancy-eth",
+        "function": "withdraw",
+        "fix": {
+          "status": "verified",
+          "gates_passed": [
+            "compilation",
+            "interface_preserved",
+            "static_analysis"
+          ],
+          "fixed_code": "function withdraw(uint256 amount) external {\n        require(balances[msg.sender] >= amount, \"insufficient\");\n        balances[msg.sender] -= amount;\n        (bool ok,) = msg.sender.call{value: amount}(\"\");\n        require(ok, \"transfer failed\");\n\n    }",
+          "diff": "--- original\n+++ fixed\n@@ -1,6 +1,7 @@\n function withdraw(uint256 amount) external {\n         require(balances[msg.sender] >= amount, \"insufficient\");\n+        balances[msg.sender] -= amount;\n         (bool ok,) = msg.sender.call{value: amount}(\"\");\n         require(ok, \"transfer failed\");\n-        balances[msg.sender] -= amount;\n+\n     }",
+          "new_findings_introduced": []
+        }
+      },
+      {
+        "check": "solc-version",
+        "impact": "Informational",
+        "confidence": "High",
+        "description": "Version constraint ^0.8.20 contains known severe issues (https://solidity.readthedocs.io/en/latest/bugs.html)\n\t- VerbatimInvalidDeduplication\n\t- FullInlinerNonExpressionSplitArgumentEvaluationOrder\n\t- MissingSideEffectsOnSelectorAccess.\nIt is used by:\n\t- ^0.8.20 (contracts/reentrancy_example.sol#2)\n",
+        "function_name": "contract scope",
+        "filename": "contracts/reentrancy_example.sol",
+        "lines": [
+          2
+        ],
+        "raw": {
+          "elements": [
+            {
+              "type": "pragma",
+              "name": "^0.8.20",
+              "source_mapping": {
+                "start": 32,
+                "length": 24,
+                "filename_relative": "contracts/reentrancy_example.sol",
+                "filename_absolute": "/home/a8hi9t/Work/smart-contract/contracts/reentrancy_example.sol",
+                "filename_short": "contracts/reentrancy_example.sol",
+                "is_dependency": false,
+                "lines": [
+                  2
+                ],
+                "starting_column": 1,
+                "ending_column": 25
+              },
+              "type_specific_fields": {
+                "directive": [
+                  "solidity",
+                  "^",
+                  "0.8",
+                  ".20"
+                ]
+              }
+            }
+          ],
+          "description": "Version constraint ^0.8.20 contains known severe issues (https://solidity.readthedocs.io/en/latest/bugs.html)\n\t- VerbatimInvalidDeduplication\n\t- FullInlinerNonExpressionSplitArgumentEvaluationOrder\n\t- MissingSideEffectsOnSelectorAccess.\nIt is used by:\n\t- ^0.8.20 (contracts/reentrancy_example.sol#2)\n",
+          "markdown": "Version constraint ^0.8.20 contains known severe issues (https://solidity.readthedocs.io/en/latest/bugs.html)\n\t- VerbatimInvalidDeduplication\n\t- FullInlinerNonExpressionSplitArgumentEvaluationOrder\n\t- MissingSideEffectsOnSelectorAccess.\nIt is used by:\n\t- [^0.8.20](contracts/reentrancy_example.sol#L2)\n",
+          "first_markdown_element": "contracts/reentrancy_example.sol#L2",
+          "id": "9a7a007e034c0fe3e4681f772b23028426f151f263b8332962f640bb3fee6c1e",
+          "check": "solc-version",
+          "impact": "Informational",
+          "confidence": "High",
+          "reference": "https://github.com/crytic/slither/wiki/Detector-Documentation#incorrect-versions-of-solidity"
+        },
+        "explanation": "### Assessment\nLikely true positive based on the static-analysis evidence; review the reported code path and any guards before deploying.\n\n### Risk\nAn attacker may trigger the affected path under unexpected conditions, potentially causing loss of funds or unauthorized state changes.\n\n### Exploit example\nAn adversary supplies crafted input or calls the function in an unsafe order to reach the flagged operation.\n\n### Suggested fix\nApply checks-effects-interactions, explicit access control, and safe validation appropriate to the detector, then add a regression test.\n",
+        "confident": false,
+        "loops_used": 1,
+        "type": "solc-version",
+        "function": "contract scope"
+      },
+      {
+        "check": "low-level-calls",
+        "impact": "Informational",
+        "confidence": "High",
+        "description": "Low level call in ReentrancyExample.withdraw(uint256) (contracts/reentrancy_example.sol#6-11):\n\t- (ok,None) = msg.sender.call{value: amount}() (contracts/reentrancy_example.sol#8)\n",
+        "function_name": "withdraw",
+        "filename": "contracts/reentrancy_example.sol",
+        "lines": [
+          6,
+          7,
+          8,
+          9,
+          10,
+          11
+        ],
+        "raw": {
+          "elements": [
+            {
+              "type": "function",
+              "name": "withdraw",
+              "source_mapping": {
+                "start": 218,
+                "length": 252,
+                "filename_relative": "contracts/reentrancy_example.sol",
+                "filename_absolute": "/home/a8hi9t/Work/smart-contract/contracts/reentrancy_example.sol",
+                "filename_short": "contracts/reentrancy_example.sol",
+                "is_dependency": false,
+                "lines": [
+                  6,
+                  7,
+                  8,
+                  9,
+                  10,
+                  11
+                ],
+                "starting_column": 5,
+                "ending_column": 6
+              },
+              "type_specific_fields": {
+                "parent": {
+                  "type": "contract",
+                  "name": "ReentrancyExample",
+                  "source_mapping": {
+                    "start": 57,
+                    "length": 415,
+                    "filename_relative": "contracts/reentrancy_example.sol",
+                    "filename_absolute": "/home/a8hi9t/Work/smart-contract/contracts/reentrancy_example.sol",
+                    "filename_short": "contracts/reentrancy_example.sol",
+                    "is_dependency": false,
+                    "lines": [
+                      3,
+                      4,
+                      5,
+                      6,
+                      7,
+                      8,
+                      9,
+                      10,
+                      11,
+                      12
+                    ],
+                    "starting_column": 1,
+                    "ending_column": 2
+                  }
+                },
+                "signature": "withdraw(uint256)"
+              }
+            },
+            {
+              "type": "node",
+              "name": "(ok,None) = msg.sender.call{value: amount}()",
+              "source_mapping": {
+                "start": 336,
+                "length": 47,
+                "filename_relative": "contracts/reentrancy_example.sol",
+                "filename_absolute": "/home/a8hi9t/Work/smart-contract/contracts/reentrancy_example.sol",
+                "filename_short": "contracts/reentrancy_example.sol",
+                "is_dependency": false,
+                "lines": [
+                  8
+                ],
+                "starting_column": 9,
+                "ending_column": 56
+              },
+              "type_specific_fields": {
+                "parent": {
+                  "type": "function",
+                  "name": "withdraw",
+                  "source_mapping": {
+                    "start": 218,
+                    "length": 252,
+                    "filename_relative": "contracts/reentrancy_example.sol",
+                    "filename_absolute": "/home/a8hi9t/Work/smart-contract/contracts/reentrancy_example.sol",
+                    "filename_short": "contracts/reentrancy_example.sol",
+                    "is_dependency": false,
+                    "lines": [
+                      6,
+                      7,
+                      8,
+                      9,
+                      10,
+                      11
+                    ],
+                    "starting_column": 5,
+                    "ending_column": 6
+                  },
+                  "type_specific_fields": {
+                    "parent": {
+                      "type": "contract",
+                      "name": "ReentrancyExample",
+                      "source_mapping": {
+                        "start": 57,
+                        "length": 415,
+                        "filename_relative": "contracts/reentrancy_example.sol",
+                        "filename_absolute": "/home/a8hi9t/Work/smart-contract/contracts/reentrancy_example.sol",
+                        "filename_short": "contracts/reentrancy_example.sol",
+                        "is_dependency": false,
+                        "lines": [
+                          3,
+                          4,
+                          5,
+                          6,
+                          7,
+                          8,
+                          9,
+                          10,
+                          11,
+                          12
+                        ],
+                        "starting_column": 1,
+                        "ending_column": 2
+                      }
+                    },
+                    "signature": "withdraw(uint256)"
+                  }
+                }
+              }
+            }
+          ],
+          "description": "Low level call in ReentrancyExample.withdraw(uint256) (contracts/reentrancy_example.sol#6-11):\n\t- (ok,None) = msg.sender.call{value: amount}() (contracts/reentrancy_example.sol#8)\n",
+          "markdown": "Low level call in [ReentrancyExample.withdraw(uint256)](contracts/reentrancy_example.sol#L6-L11):\n\t- [(ok,None) = msg.sender.call{value: amount}()](contracts/reentrancy_example.sol#L8)\n",
+          "first_markdown_element": "contracts/reentrancy_example.sol#L6-L11",
+          "id": "f3aeac496cbd7038a36576a7431992bf0a76fe460b1d120fc9b5051c2f3758b6",
+          "check": "low-level-calls",
+          "impact": "Informational",
+          "confidence": "High",
+          "reference": "https://github.com/crytic/slither/wiki/Detector-Documentation#low-level-calls"
+        },
+        "explanation": "### Assessment\nLikely true positive based on the static-analysis evidence; review the reported code path and any guards before deploying.\n\n### Risk\nAn attacker may trigger the affected path under unexpected conditions, potentially causing loss of funds or unauthorized state changes.\n\n### Exploit example\nAn adversary supplies crafted input or calls the function in an unsafe order to reach the flagged operation.\n\n### Suggested fix\nApply checks-effects-interactions, explicit access control, and safe validation appropriate to the detector, then add a regression test.\n",
+        "confident": false,
+        "loops_used": 1,
+        "type": "low-level-calls",
+        "function": "withdraw"
+      }
+    ],
+    "gas": [
+      {
+        "type": "redundant-storage-read",
+        "check": "redundant-storage-read",
+        "impact": "Low",
+        "confidence": "Medium",
+        "description": "balances[msg.sender] is read repeatedly; cache the value in memory.",
+        "function_name": "withdraw",
+        "filename": "contracts/reentrancy_example.sol",
+        "lines": [
+          7
+        ],
+        "detector": "gas-pattern",
+        "explanation": "### Assessment\nLikely true positive based on the static-analysis evidence; review the reported code path and any guards before deploying.\n\n### Risk\nAn attacker may trigger the affected path under unexpected conditions, potentially causing loss of funds or unauthorized state changes.\n\n### Exploit example\nAn adversary supplies crafted input or calls the function in an unsafe order to reach the flagged operation.\n\n### Suggested fix\nApply checks-effects-interactions, explicit access control, and safe validation appropriate to the detector, then add a regression test.\n",
+        "confident": false,
+        "loops_used": 1,
+        "function": "withdraw"
+      }
+    ]
+  }
+}

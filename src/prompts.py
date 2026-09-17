@@ -108,3 +108,27 @@ VERDICT: CONFIDENT or UNCERTAIN
 REASON: <one or two sentences>
 MISSING_CONTEXT: <"calling function", "re-retrieve: <topic>", or "none">
 """
+
+
+def build_fix_prompt(
+    code_snippet: str, finding: dict[str, Any], explanation: str
+) -> str:
+    """Build a constrained prompt that asks the LLM for a single-function Solidity fix."""
+    return f"""You are fixing a security vulnerability in a Solidity function.
+
+Original function:
+```solidity
+{code_snippet}
+```
+
+Vulnerability: {finding.get("check", "unknown")}
+Target function: {finding.get("function_name", "contract scope")}
+Explanation of the issue: {explanation}
+
+Output ONLY the corrected version of this function. Do not change its name,
+parameters, visibility, or return type unless absolutely required to fix the
+vulnerability. If a signature change is required, add a short comment directly
+above the function stating why.
+
+Output format: a single Solidity code block, nothing else.
+"""

@@ -20,3 +20,6 @@ agent:
   max_loops: 3
 pipeline:
   concurrent: false
+autofix:
+  enabled: true
+  max_retry_attempts: 2

@@ -12,6 +12,28 @@ def _location(finding: dict[str, Any]) -> str:
     return f'{finding.get("function_name", "contract scope")}, lines {line_text}'
 
 
+def _render_fix_section(finding: dict[str, Any]) -> str:
+    fix = finding.get("fix") or finding.get("generated_fix")
+    if not fix:
+        return ""
+    status = str(fix.get("status", "unknown")).capitalize()
+    gate_info = ", ".join(f"{gate}" for gate in fix.get("gates_passed", [])) or "n/a"
+    lines = [
+        "**Suggested Fix:**",
+        f"Status: {status} | Gates passed: {gate_info}",
+    ]
+    if fix.get("detail"):
+        lines.append(f"Detail: {fix['detail']}")
+    if fix.get("diff"):
+        lines.append("```diff")
+        lines.append(str(fix.get("diff", "")))
+        lines.append("```")
+    if fix.get("new_findings_introduced"):
+        lines.append("**New findings introduced:**")
+        lines.append(json.dumps(fix.get("new_findings_introduced", []), indent=2, default=str))
+    return "\n".join(lines) + "\n\n"
+
+
 def _format_finding_sections(
     heading: str,
     findings_with_explanations: list[dict[str, Any]],
@@ -43,7 +65,9 @@ def _format_finding_sections(
             f"### Finding {index}: {kind} — Severity: {finding.get('impact', 'Unknown')} — {confidence}\n"
             f"**Location:** {_location(finding)}\n\n"
             f"**Critic loops:** {finding.get('loops_used', 'unknown')}\n\n"
-            f"{finding.get('explanation', 'No explanation generated.')}\n\n---\n"
+            f"{finding.get('explanation', 'No explanation generated.')}\n\n"
+            f"{_render_fix_section(finding)}"
+            f"---\n"
         )
     return sections
 
@@ -56,7 +80,11 @@ def format_report(
     if isinstance(findings_with_explanations, dict):
         security = findings_with_explanations.get("security", [])
         gas = findings_with_explanations.get("gas", [])
-        sections = [f"# Security Report: {contract_name}\n"]
+        sections = [
+            f"# Security Report: {contract_name}\n",
+            "Verified fixes pass compilation, interface-preservation, and static-analysis checks. "
+            "They are not behaviorally proven equivalent to the original code; review before applying.\n\n",
+        ]
         sections.extend(_format_finding_sections("## Security Findings\n", security))
         sections.extend(_format_finding_sections("## Gas Optimization Findings\n", gas))
         return "\n".join(sections)
@@ -64,7 +92,7 @@ def format_report(
     title = f"# Security Report: {contract_name}\n\n"
     if not findings_with_explanations:
         return title + "No issues detected by static analysis.\n"
-    sections = [title]
+    sections = [title, "Verified fixes pass compilation, interface-preservation, and static-analysis checks. They are not behaviorally proven equivalent to the original code; review before applying.\n\n"]
     review_findings = [
         (index, finding) for index, finding in enumerate(findings_with_explanations, 1)
         if not finding.get("confident", True)
@@ -82,7 +110,9 @@ def format_report(
             f"Severity: {finding.get('impact', 'Unknown')} — {confidence}\n"
             f"**Location:** {_location(finding)}\n\n"
             f"**Critic loops:** {finding.get('loops_used', 'unknown')}\n\n"
-            f"{finding.get('explanation', 'No explanation generated.')}\n\n---\n"
+            f"{finding.get('explanation', 'No explanation generated.')}\n\n"
+            f"{_render_fix_section(finding)}"
+            f"---\n"
         )
     return "\n".join(sections)
 

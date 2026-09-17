@@ -172,6 +172,102 @@ The evaluator compares predicted findings against ground truth and computes:
 This gives the project a reproducible way to measure improvement over time,
 which is the key difference between a demo and a testable security tool.
 
+## V4 implementation
+
+V4 adds a fix-and-verify pipeline on top of the security agent. This is a
+bounded verification system for single-function Solidity fixes, not an
+unrestricted auto-fix engine.
+
+### Fix-generation prompt
+
+The fix pipeline uses a dedicated prompt in `src/prompts.py`:
+
+```python
+build_fix_prompt(code_snippet, finding, explanation)
+```
+
+It asks the model to return only a corrected version of the vulnerable
+function, preserving the function signature unless a change is strictly
+necessary. This is intentionally strict so the interface checks remain
+meaningful.
+
+### Temp-file sandbox
+
+The fix is applied to a temp copy of the original Solidity file rather than the
+real source file. The sandbox logic is implemented in:
+
+- `src/autofix/sandbox.py`
+- `apply_fix_to_temp_copy(original_filepath, function_name, fixed_code)`
+
+This guarantees that the app never writes a fix back into the user's original
+contract during verification.
+
+### Verification gates
+
+The generated fix passes through three verification gates before it is marked as
+verified:
+
+1. **Compilation gate**
+   - `check_compiles(filepath)` runs `solc --bin`.
+   - If compilation fails, the fix is rejected.
+   - One retry is allowed after feeding the compiler output back to the model.
+
+2. **Interface preservation gate**
+   - `check_interface_preserved(original, fixed, function_name)` compares the ABI
+     for the target function.
+   - It rejects changes to the function name, input types, output types,
+     visibility, or state mutability.
+
+3. **Static-analysis re-check**
+   - `check_vulnerability_resolved(original_findings, fixed_filepath)` reruns
+     Slither on the fixed temp file.
+   - The original issue must no longer appear for the same function.
+   - Any newly introduced findings are reported as warnings.
+
+### Orchestration
+
+The fix pipeline is implemented in:
+
+- `src/autofix/pipeline.py`
+- `generate_verified_fix(...)`
+
+It returns a structured result like:
+
+```python
+{
+  "status": "verified",
+  "gates_passed": ["compilation", "interface_preserved", "static_analysis"],
+  "fixed_code": "...",
+  "diff": "...",
+  "new_findings_introduced": []
+}
+```
+
+If a gate fails, the result is marked as failed and includes the gate name and
+reason instead of pretending the fix is valid.
+
+### Report integration
+
+The formatter includes a `Suggested Fix` section when fix metadata is attached
+to a finding. Verified fixes show their diff and gate list. Failed fixes show
+which gate failed and why. This is intentionally explicit so the tool does not
+hide the limitations of auto-fix generation.
+
+### CLI usage
+
+To generate a fix for the first security finding:
+
+```bash
+python main.py \
+  --file contracts/reentrancy_example.sol \
+  --output report.md \
+  --fix \
+  --fix-index 0
+```
+
+This writes the standard report and prints the verified fix diff to the console
+when the verification gates pass.
+
 ## Installation
 
 Python 3.10 or newer is recommended.
@@ -289,6 +385,17 @@ If the configured LLM is unavailable, the application uses a deterministic
 offline explanation so the pipeline can still be tested. This fallback is not
 a substitute for a real security review.
 
+## Offline RAG retrieval
+
+The CLI uses the local JSON knowledge indexes by default. This avoids trying
+to download `all-MiniLM-L6-v2` from Hugging Face during an offline run. The
+Chroma/sentence-transformers path is still available when the model is already
+cached or network access is available:
+
+```bash
+export SMART_CONTRACT_USE_EMBEDDINGS=1
+```
+
 ## Project structure
 
 ```text
@@ -299,7 +406,8 @@ src/rag/                Knowledge indexing and retrieval
 src/llm/                Ollama, Anthropic, and offline clients
 src/prompts.py          Explanation and critic prompts
 src/agents/gas_agent.py Gas pattern detector and gas critic loop
-src/pipeline.py         V1/V2 logic and V3 orchestrator
+src/autofix/            Fix generation and verification pipeline
+src/pipeline.py         V1/V2 logic and V3/V4 orchestrator
 src/report/             Markdown and JSON formatting
 knowledge_base_gas/     Gas optimization reference documents
 eval/                   Ground-truth labels and evaluation script

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import re
 from pathlib import Path
 from typing import Any
@@ -41,6 +42,20 @@ def retrieve(
     if k <= 0:
         return []
     persist = Path(persist_directory)
+    index_name = (
+        "knowledge_index.json"
+        if collection == "vuln_knowledge"
+        else f"knowledge_index_{collection}.json"
+    )
+    fallback_index = persist / index_name
+
+    # The JSON index is deterministic and already local.  Prefer it by
+    # default so an offline CLI run never blocks while transformers retries a
+    # Hugging Face download.  Embedding retrieval remains opt-in for users
+    # who have a cached model or explicitly want Chroma.
+    if fallback_index.is_file() and os.getenv("SMART_CONTRACT_USE_EMBEDDINGS") != "1":
+        return _fallback(query, fallback_index, k)
+
     try:
         import chromadb  # type: ignore
         from sentence_transformers import SentenceTransformer  # type: ignore
@@ -50,9 +65,4 @@ def retrieve(
         result = collection_obj.query(query_embeddings=embedding, n_results=k)
         return [str(item) for item in (result.get("documents") or [[]])[0]]
     except Exception:
-        index_name = (
-            "knowledge_index.json"
-            if collection == "vuln_knowledge"
-            else f"knowledge_index_{collection}.json"
-        )
-        return _fallback(query, persist / index_name, k)
+        return _fallback(query, fallback_index, k)

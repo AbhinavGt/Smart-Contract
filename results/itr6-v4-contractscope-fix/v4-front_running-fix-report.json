@@ -1,0 +1,66 @@
+{
+  "contract": "front_running_example.sol",
+  "findings": {
+    "security": [
+      {
+        "check": "solc-version",
+        "impact": "Informational",
+        "confidence": "High",
+        "description": "Version constraint ^0.8.20 contains known severe issues (https://solidity.readthedocs.io/en/latest/bugs.html)\n\t- VerbatimInvalidDeduplication\n\t- FullInlinerNonExpressionSplitArgumentEvaluationOrder\n\t- MissingSideEffectsOnSelectorAccess.\nIt is used by:\n\t- ^0.8.20 (contracts/front_running_example.sol#2)\n",
+        "function_name": "contract scope",
+        "filename": "contracts/front_running_example.sol",
+        "lines": [
+          2
+        ],
+        "raw": {
+          "elements": [
+            {
+              "type": "pragma",
+              "name": "^0.8.20",
+              "source_mapping": {
+                "start": 32,
+                "length": 24,
+                "filename_relative": "contracts/front_running_example.sol",
+                "filename_absolute": "/home/a8hi9t/Work/smart-contract/contracts/front_running_example.sol",
+                "filename_short": "contracts/front_running_example.sol",
+                "is_dependency": false,
+                "lines": [
+                  2
+                ],
+                "starting_column": 1,
+                "ending_column": 25
+              },
+              "type_specific_fields": {
+                "directive": [
+                  "solidity",
+                  "^",
+                  "0.8",
+                  ".20"
+                ]
+              }
+            }
+          ],
+          "description": "Version constraint ^0.8.20 contains known severe issues (https://solidity.readthedocs.io/en/latest/bugs.html)\n\t- VerbatimInvalidDeduplication\n\t- FullInlinerNonExpressionSplitArgumentEvaluationOrder\n\t- MissingSideEffectsOnSelectorAccess.\nIt is used by:\n\t- ^0.8.20 (contracts/front_running_example.sol#2)\n",
+          "markdown": "Version constraint ^0.8.20 contains known severe issues (https://solidity.readthedocs.io/en/latest/bugs.html)\n\t- VerbatimInvalidDeduplication\n\t- FullInlinerNonExpressionSplitArgumentEvaluationOrder\n\t- MissingSideEffectsOnSelectorAccess.\nIt is used by:\n\t- [^0.8.20](contracts/front_running_example.sol#L2)\n",
+          "first_markdown_element": "contracts/front_running_example.sol#L2",
+          "id": "57c7988a709f1531ef3fa27a8ee96dbedf8876eb90dd07b239728d763f608cb6",
+          "check": "solc-version",
+          "impact": "Informational",
+          "confidence": "High",
+          "reference": "https://github.com/crytic/slither/wiki/Detector-Documentation#incorrect-versions-of-solidity"
+        },
+        "explanation": "### Assessment\nLikely true positive based on the static-analysis evidence; review the reported code path and any guards before deploying.\n\n### Risk\nAn attacker may trigger the affected path under unexpected conditions, potentially causing loss of funds or unauthorized state changes.\n\n### Exploit example\nAn adversary supplies crafted input or calls the function in an unsafe order to reach the flagged operation.\n\n### Suggested fix\nApply checks-effects-interactions, explicit access control, and safe validation appropriate to the detector, then add a regression test.\n",
+        "confident": false,
+        "loops_used": 1,
+        "type": "solc-version",
+        "function": "contract scope",
+        "fix": {
+          "status": "failed",
+          "gate_failed": "scope",
+          "detail": "This finding is attached to contract scope and cannot be auto-fixed by the single-function v4 pipeline."
+        }
+      }
+    ],
+    "gas": []
+  }
+}
