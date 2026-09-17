@@ -97,8 +97,10 @@ def run_slither(filepath: str, slither_bin: str = "slither", timeout: int = 120)
     if payload.get("success") is False and not detectors:
         error = (payload.get("error") or completed.stderr or "analysis failed")
         raise SlitherError(f"Slither failed: {error}")
+    security_relevant_impacts = {"high", "medium", "low"}
     return [
         _normalise_finding(detector, str(path))
         for detector in detectors
         if isinstance(detector, dict)
+        and str(detector.get("impact", "")).strip().lower() in security_relevant_impacts
     ]

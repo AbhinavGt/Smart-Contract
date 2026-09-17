@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import difflib
 import os
+import re
 from pathlib import Path
 from typing import Any
 
-from ..llm import LLMClient
+from ..llm import LLMClient, LLMResult
 from ..prompts import build_fix_prompt
 from .sandbox import _find_function_bounds, apply_fix_to_temp_copy
 from .verify import check_compiles, check_interface_preserved, check_vulnerability_resolved
@@ -23,6 +24,23 @@ def generate_diff(original: str, updated: str) -> str:
             lineterm="",
         )
     )
+
+def extract_code_block(llm_response: str, function_name: str | None = None) -> str:
+    """Extract only a fenced Solidity function from model output."""
+    match = re.search(r"```(?:solidity)?[ \t]*\n(.*?)```", llm_response, re.DOTALL | re.IGNORECASE)
+    if not match:
+        raise ValueError("No Solidity code fence found in LLM fix response.")
+    code = match.group(1).strip()
+    if not code:
+        raise ValueError("The Solidity code fence in the LLM fix response was empty.")
+    if function_name and not re.search(
+        rf"\bfunction\s+{re.escape(function_name)}\s*\(",
+        code,
+    ):
+        raise ValueError(
+            f"The extracted Solidity code does not contain the target function '{function_name}'."
+        )
+    return code
 
 
 def generate_verified_fix(
@@ -50,7 +68,20 @@ def generate_verified_fix(
             ),
         }
 
-    fixed_code = llm.generate(build_fix_prompt(code_snippet, finding, explanation))
+    result = llm.generate(build_fix_prompt(code_snippet, finding, explanation))
+    is_fallback = result.is_fallback if isinstance(result, LLMResult) else False
+    fallback_reason = result.fallback_reason if isinstance(result, LLMResult) else None
+    raw_fixed_code = result.text if isinstance(result, LLMResult) else str(result)
+    try:
+        fixed_code = extract_code_block(raw_fixed_code, function_name)
+    except ValueError as exc:
+        return {
+            "status": "failed",
+            "gate_failed": "extraction",
+            "detail": str(exc),
+            "is_fallback": is_fallback,
+            "fallback_reason": fallback_reason,
+        }
     temp_path: str | None = None
     try:
         for attempt in range(2):
@@ -63,12 +94,31 @@ def generate_verified_fix(
                     build_fix_prompt(code_snippet, finding, explanation)
                     + f"\n\nPrevious attempt failed to compile: {compile_error}"
                 )
-                fixed_code = llm.generate(retry_prompt)
+                retry_result = llm.generate(retry_prompt)
+                is_fallback = is_fallback or (
+                    retry_result.is_fallback if isinstance(retry_result, LLMResult) else False
+                )
+                fallback_reason = fallback_reason or (
+                    retry_result.fallback_reason if isinstance(retry_result, LLMResult) else None
+                )
+                raw_fixed_code = retry_result.text if isinstance(retry_result, LLMResult) else str(retry_result)
+                try:
+                    fixed_code = extract_code_block(raw_fixed_code, function_name)
+                except ValueError as exc:
+                    return {
+                        "status": "failed",
+                        "gate_failed": "extraction",
+                        "detail": str(exc),
+                        "is_fallback": is_fallback,
+                        "fallback_reason": fallback_reason,
+                    }
                 continue
             return {
                 "status": "failed",
                 "gate_failed": "compilation",
                 "detail": compile_error,
+                "is_fallback": is_fallback,
+                "fallback_reason": fallback_reason,
             }
 
         if temp_path is None:
@@ -107,6 +157,8 @@ def generate_verified_fix(
             "fixed_code": fixed_code,
             "diff": generate_diff(original_source[start:end], fixed_code),
             "new_findings_introduced": new_findings,
+            "is_fallback": is_fallback,
+            "fallback_reason": fallback_reason,
         }
     finally:
         if temp_path and os.path.exists(temp_path):

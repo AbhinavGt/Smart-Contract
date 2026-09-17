@@ -6,6 +6,12 @@
     "chunk": 0
   },
   {
+    "id": "21181f3b305a4e66e774b7b09820b44bda1c184f",
+    "text": "# Arbitrary send of ether The Slither `arbitrary-send-eth` detector identifies a function that sends contract-held ether to an address controlled by the caller or otherwise lacks authorization for a privileged transfer. This is an access-control problem, not automatically a reentrancy problem. The function should restrict callers with an owner or role check and validate the intended recipient and amount. Review who controls the destination address and whether the transfer is reachable by untrusted callers.",
+    "source": "arbitrary-send-eth.md",
+    "chunk": 0
+  },
+  {
     "id": "170a80e351b80319fda85c8e7e5f8bea50fc3c3b",
     "text": "# DAO-style exploit lessons The DAO incident combined a recursive callback with balance accounting performed too late. Each callback withdrew against the unchanged balance, draining funds until gas or liquidity stopped the recursion. The durable lesson is to update effects before interactions and to keep external calls narrowly scoped.",
     "source": "dao-hack-writeup.md",
@@ -21,6 +27,12 @@
     "id": "e35af76613af933d89a2a8c5116feea36d68c07a",
     "text": "# Front-running and transaction ordering Pending transactions expose parameters and intent before confirmation. A trader or bot can submit a competing transaction with a higher fee, capturing an opportunity or changing ordering. Commit-reveal schemes, slippage limits, deadlines, and private order flow can reduce this risk.",
     "source": "front-running.md",
+    "chunk": 0
+  },
+  {
+    "id": "506196161d6d1b7c34317097108f613c31640099",
+    "text": "# Missing zero-address check The Slither `missing-zero-check` detector identifies an address assignment or use that does not reject the zero address when zero would make the contract unusable or send funds incorrectly. A suitable fix is usually `require(addressValue != address(0), \"...\");` before the assignment or use. Do not confuse this detector with access control, reentrancy, or signature replay; the relevant evidence is the address value and its validation.",
+    "source": "missing-zero-check.md",
     "chunk": 0
   },
   {

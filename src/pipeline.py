@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from pathlib import Path
+import logging
 from typing import Any, Callable
 
-from .llm import AnthropicClient, DeterministicLLMClient, LLMClient, OllamaClient
+from .llm import AnthropicClient, DeterministicLLMClient, LLMClient, LLMResult, OllamaClient
 from .llm.llm_client import config_value
 from .prompts import (
     build_critique_prompt,
@@ -14,7 +15,43 @@ from .prompts import (
 from .rag.retriever import retrieve
 from .report.formatter import format_report
 from .static_analysis import run_slither
+from .llm.contamination_filter import looks_contaminated
 
+LOGGER = logging.getLogger(__name__)
+
+
+def _clean_explanation(text: str) -> str:
+    """Trim accidental repeated answer blocks from local model output."""
+    markers = ("### Assessment", "### Risk", "### Exploit example", "### Suggested fix",
+               "### Gas impact", "### Suggested optimization")
+    positions: list[int] = []
+    for marker in markers:
+        first = text.find(marker)
+        if first != -1:
+            second = text.find(marker, first + len(marker))
+            if second != -1:
+                positions.append(second)
+    return text[: min(positions)].rstrip() if positions else text.strip()
+
+
+def _grounding_warning(check: str, explanation: str) -> str | None:
+    """Flag obvious cross-vulnerability hallucinations for manual review."""
+    lowered_check = check.lower()
+    lowered_text = explanation.lower()
+    mismatches = {
+        "arbitrary-send-eth": ("reentrancy",),
+        "missing-zero-check": (
+            "reentrancy", "signature replay", "nonce", "chain identifier",
+            "openzeppelin", "erc", "eip",
+        ),
+        "reentrancy": ("signature replay", "nonce"),
+    }
+    for key, forbidden_terms in mismatches.items():
+        if key in lowered_check:
+            for term in forbidden_terms:
+                if term in lowered_text:
+                    return f"Explanation mentions '{term}', which does not match detector '{check}'."
+    return None
 
 def load_config(path: str | Path = "config.yaml") -> dict[str, Any]:
     config_path = Path(path)
@@ -48,17 +85,19 @@ def load_config(path: str | Path = "config.yaml") -> dict[str, Any]:
         return result
 
 
-def make_llm_client(config: dict[str, Any]) -> LLMClient:
+def make_llm_client(config: dict[str, Any], *, allow_offline_fallback: bool = False) -> LLMClient:
     backend = str(config_value(config, "llm", "backend", default="ollama")).lower()
     model = str(config_value(config, "llm", "model", default="deepseek-coder"))
     timeout = int(config_value(config, "llm", "timeout_seconds", default=60))
     if backend == "anthropic":
-        return AnthropicClient(model=model, timeout=timeout, fallback=DeterministicLLMClient())
+        return AnthropicClient(model=model, timeout=timeout, fallback=DeterministicLLMClient(),
+                               allow_offline_fallback=allow_offline_fallback)
     if backend == "ollama":
         return OllamaClient(
             model=model,
             base_url=str(config_value(config, "llm", "base_url", default="http://localhost:11434")),
             timeout=timeout,
+            allow_offline_fallback=allow_offline_fallback,
         )
     raise ValueError(f"Unsupported LLM backend: {backend}")
 
@@ -84,6 +123,12 @@ def parse_critique(critique: str) -> tuple[str, str, str | None]:
     if not missing or missing.lower() == "none":
         missing = None
     return verdict, values.get("REASON", "Critique response was incomplete."), missing
+
+
+def _llm_text(result: LLMResult | str) -> tuple[str, bool, str | None]:
+    if isinstance(result, LLMResult):
+        return result.text, result.is_fallback, result.fallback_reason
+    return str(result), False, None
 
 
 def fetch_additional_context(
@@ -137,21 +182,28 @@ def explain_finding_with_critic(
     collection: str = "vuln_knowledge",
     explanation_prompt_builder: Callable[..., str] = build_explanation_prompt,
     critique_prompt_builder: Callable[..., str] = build_critique_prompt,
-) -> tuple[str, bool, int]:
+) -> tuple[str, bool, int, bool, str | None]:
     """Generate and adapt an explanation using a bounded critic loop."""
     if max_loops < 0:
         raise ValueError("max_loops must be non-negative")
-    explanation = llm.generate(
-        explanation_prompt_builder(code_snippet, finding, retrieved_context)
-    )
+    explanation_prompt = explanation_prompt_builder(code_snippet, finding, retrieved_context)
+    LOGGER.debug("Explanation prompt for %s:\n%s", finding.get("check", "unknown"), explanation_prompt)
+    result = llm.generate(explanation_prompt)
+    explanation, is_fallback, fallback_reason = _llm_text(result)
+    explanation = _clean_explanation(explanation)
+    LOGGER.debug("Explanation response for %s:\n%s", finding.get("check", "unknown"), explanation)
     for loop_number in range(1, max_loops + 1):
-        verdict, _reason, missing = parse_critique(
-            llm.generate(critique_prompt_builder(code_snippet, finding, explanation))
-        )
+        critique_prompt = critique_prompt_builder(code_snippet, finding, explanation)
+        critique_result = llm.generate(critique_prompt)
+        critique_response, critique_fallback, critique_reason = _llm_text(critique_result)
+        is_fallback = is_fallback or critique_fallback
+        fallback_reason = fallback_reason or critique_reason
+        LOGGER.debug("Critique response for %s:\n%s", finding.get("check", "unknown"), critique_response)
+        verdict, _reason, missing = parse_critique(critique_response)
         if verdict == "CONFIDENT":
-            return explanation, True, loop_number
+            return explanation, True, loop_number, is_fallback, fallback_reason
         if missing is None:
-            return explanation, False, loop_number
+            return explanation, False, loop_number, is_fallback, fallback_reason
         extra = fetch_additional_context(
             filepath, missing, finding=finding, retriever=retriever,
             top_k=len(retrieved_context) or 3,
@@ -159,10 +211,15 @@ def explain_finding_with_critic(
             collection=collection,
         )
         context = retrieved_context + ([extra] if extra else [])
-        explanation = llm.generate(
-            explanation_prompt_builder(code_snippet, finding, context)
-        )
-    return explanation, False, max_loops
+        explanation_prompt = explanation_prompt_builder(code_snippet, finding, context)
+        LOGGER.debug("Retry explanation prompt for %s:\n%s", finding.get("check", "unknown"), explanation_prompt)
+        retry_result = llm.generate(explanation_prompt)
+        explanation, retry_fallback, retry_reason = _llm_text(retry_result)
+        explanation = _clean_explanation(explanation)
+        is_fallback = is_fallback or retry_fallback
+        fallback_reason = fallback_reason or retry_reason
+        LOGGER.debug("Retry explanation response for %s:\n%s", finding.get("check", "unknown"), explanation)
+    return explanation, False, max_loops, is_fallback, fallback_reason
 
 
 def analyze_contract_data(
@@ -170,6 +227,7 @@ def analyze_contract_data(
     config_path: str | Path = "config.yaml",
     *,
     llm_client: LLMClient | None = None,
+    allow_offline_fallback: bool = False,
     analyzer: Callable[[str], list[dict[str, Any]]] = run_slither,
     retriever: Callable[..., list[str]] = retrieve,
     progress: Callable[[str], None] | None = None,
@@ -181,7 +239,7 @@ def analyze_contract_data(
     findings = analyzer(filepath)
     if not findings:
         return path.name, []
-    client = llm_client or make_llm_client(config)
+    client = llm_client or make_llm_client(config, allow_offline_fallback=allow_offline_fallback)
     top_k = int(config_value(config, "rag", "top_k", default=3))
     persist = config_value(config, "rag", "persist_directory", default="chroma_db")
     embedding = config_value(config, "rag", "embedding_model", default="all-MiniLM-L6-v2")
@@ -191,7 +249,7 @@ def analyze_contract_data(
         progress and progress("Retrieving context...")
         try:
             context = retriever(
-                f"{finding.get('check', '')} {finding.get('description', '')}",
+                str(finding.get("check", "")),
                 k=top_k,
                 persist_directory=persist,
                 embedding_model=embedding,
@@ -200,7 +258,7 @@ def analyze_contract_data(
             context = retriever(f"{finding.get('check', '')} {finding.get('description', '')}", top_k)
         progress and progress("Generating explanations...")
         item = dict(finding)
-        explanation, confident, loops_used = explain_finding_with_critic(
+        explanation, confident, loops_used, is_fallback, fallback_reason = explain_finding_with_critic(
             finding, _snippet(source_lines, finding.get("lines", [])), context,
             filepath=filepath, llm=client, max_loops=max_loops,
             retriever=retriever, persist_directory=persist, embedding_model=embedding,
@@ -208,6 +266,19 @@ def analyze_contract_data(
         item["explanation"] = explanation
         item["confident"] = confident
         item["loops_used"] = loops_used
+        item["is_fallback"] = is_fallback
+        snippet = _snippet(source_lines, finding.get("lines", []))
+        warning = _grounding_warning(str(finding.get("check", "")), explanation)
+        if looks_contaminated(explanation, snippet):
+            warning = (
+                "Response contained signs of fabricated external references or "
+                "an unrecognized standard and was flagged automatically."
+            )
+        if warning:
+            item["grounding_warning"] = warning
+            item["confident"] = False
+        if fallback_reason:
+            item["fallback_reason"] = fallback_reason
         item.setdefault("type", item.get("check", "unknown"))
         item.setdefault("function", item.get("function_name", "contract scope"))
         explained.append(item)
@@ -219,6 +290,7 @@ def run_security_agent(
     config_path: str | Path = "config.yaml",
     *,
     llm_client: LLMClient | None = None,
+    allow_offline_fallback: bool = False,
     analyzer: Callable[[str], list[dict[str, Any]]] = run_slither,
     retriever: Callable[..., list[str]] = retrieve,
     progress: Callable[[str], None] | None = None,
@@ -231,6 +303,7 @@ def run_security_agent(
         analyzer=analyzer,
         retriever=retriever,
         progress=progress,
+        allow_offline_fallback=allow_offline_fallback,
     )
     return findings
 
@@ -240,6 +313,7 @@ def run_gas_agent(
     config_path: str | Path = "config.yaml",
     *,
     llm_client: LLMClient | None = None,
+    allow_offline_fallback: bool = False,
     retriever: Callable[..., list[str]] = retrieve,
     progress: Callable[[str], None] | None = None,
 ) -> list[dict[str, Any]]:
@@ -251,6 +325,7 @@ def run_gas_agent(
         filepath,
         config_path,
         llm_client=llm_client,
+        allow_offline_fallback=allow_offline_fallback,
         retriever=retriever,
         progress=progress,
     )
@@ -269,6 +344,7 @@ def orchestrate(
     config_path: str | Path = "config.yaml",
     *,
     llm_client: LLMClient | None = None,
+    allow_offline_fallback: bool = False,
     analyzer: Callable[[str], list[dict[str, Any]]] = run_slither,
     retriever: Callable[..., list[str]] = retrieve,
     progress: Callable[[str], None] | None = None,
@@ -285,20 +361,24 @@ def orchestrate(
             security_future = executor.submit(
                 run_security_agent, filepath, config_path, llm_client=llm_client,
                 analyzer=analyzer, retriever=retriever, progress=progress,
+                allow_offline_fallback=allow_offline_fallback,
             )
             gas_future = executor.submit(
                 run_gas_agent, filepath, config_path, llm_client=llm_client,
                 retriever=retriever, progress=progress,
+                allow_offline_fallback=allow_offline_fallback,
             )
             return merge_findings(security_future.result(), gas_future.result())
     return merge_findings(
         run_security_agent(
             filepath, config_path, llm_client=llm_client, analyzer=analyzer,
             retriever=retriever, progress=progress,
+            allow_offline_fallback=allow_offline_fallback,
         ),
         run_gas_agent(
             filepath, config_path, llm_client=llm_client, retriever=retriever,
             progress=progress,
+            allow_offline_fallback=allow_offline_fallback,
         ),
     )
 
@@ -311,6 +391,7 @@ def analyze_contract(
     analyzer: Callable[[str], list[dict[str, Any]]] = run_slither,
     retriever: Callable[..., list[str]] = retrieve,
     progress: Callable[[str], None] | None = None,
+    allow_offline_fallback: bool = False,
 ) -> str:
     """Analyze one Solidity file and return Markdown (legacy API)."""
     contract_name = Path(filepath).name
@@ -321,5 +402,6 @@ def analyze_contract(
         analyzer=analyzer,
         retriever=retriever,
         progress=progress,
+        allow_offline_fallback=allow_offline_fallback,
     )
     return format_report(contract_name, findings)

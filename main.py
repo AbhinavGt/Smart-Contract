@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 from src.autofix.pipeline import generate_verified_fix
+from src.llm import AnthropicClient, LLMBackendError, OllamaClient
 from src.pipeline import load_config, make_llm_client, orchestrate
 from src.report.formatter import format_json, format_report
 from src.static_analysis import SlitherError
@@ -30,11 +31,27 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--config", default="config.yaml", help="YAML configuration path")
     parser.add_argument("--fix", action="store_true", help="Generate a verified fix for the first security finding")
     parser.add_argument("--fix-index", type=int, default=0, help="Index of the security finding to repair when --fix is set")
+    parser.add_argument(
+        "--allow-offline-fallback",
+        action="store_true",
+        help="Allow deterministic rule-based output when the configured LLM is unavailable",
+    )
     args = parser.parse_args(argv)
     try:
+        config = load_config(args.config)
+        llm = make_llm_client(config, allow_offline_fallback=args.allow_offline_fallback)
+        if isinstance(llm, OllamaClient) and not args.allow_offline_fallback:
+            llm.check_available()
+        if isinstance(llm, AnthropicClient) and not args.allow_offline_fallback and not llm.api_key:
+            raise LLMBackendError(
+                "LLM backend 'anthropic' is unavailable because ANTHROPIC_API_KEY is not configured. "
+                "Set the key or re-run with --allow-offline-fallback for offline testing."
+            )
         findings = orchestrate(
             args.file,
             args.config,
+            llm_client=llm,
+            allow_offline_fallback=args.allow_offline_fallback,
             progress=lambda message: print(message, flush=True),
         )
         contract_name = Path(args.file).name
@@ -50,7 +67,6 @@ def main(argv: list[str] | None = None) -> int:
             target = security[args.fix_index]
             source_lines = Path(args.file).read_text(encoding="utf-8").splitlines()
             snippet = _snippet(source_lines, target.get("lines", []))
-            llm = make_llm_client(load_config(args.config))
             fix = generate_verified_fix(
                 target,
                 snippet,
@@ -76,7 +92,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.json_output:
             print(f"Wrote JSON report to {args.json_output}")
         return 0
-    except (OSError, SlitherError, ValueError, RuntimeError) as exc:
+    except (OSError, SlitherError, ValueError, RuntimeError, LLMBackendError) as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
 

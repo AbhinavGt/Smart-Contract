@@ -202,6 +202,7 @@ def analyze_gas(
     config_path: str | Path = "config.yaml",
     *,
     llm_client: LLMClient | None = None,
+    allow_offline_fallback: bool = False,
     retriever: Callable[..., list[str]] = retrieve,
     progress: Callable[[str], None] | None = None,
 ) -> list[dict[str, Any]]:
@@ -216,7 +217,7 @@ def analyze_gas(
     raw_findings = raw_findings[: max(0, max_findings)]
     if not raw_findings:
         return []
-    client = llm_client or make_llm_client(config)
+    client = llm_client or make_llm_client(config, allow_offline_fallback=allow_offline_fallback)
     top_k = int(config_value(
         config, "gas_rag", "top_k",
         default=config_value(config, "gas", "top_k", default=config_value(config, "rag", "top_k", default=3)),
@@ -245,7 +246,7 @@ def analyze_gas(
         progress and progress("Generating gas optimization explanation...")
         item = dict(finding)
         item["filename"] = str(path)
-        explanation, confident, loops_used = explain_finding_with_critic(
+        explanation, confident, loops_used, is_fallback, fallback_reason = explain_finding_with_critic(
             finding,
             _snippet(source_lines, finding.get("lines", [])),
             context,
@@ -259,7 +260,14 @@ def analyze_gas(
             explanation_prompt_builder=build_gas_explanation_prompt,
             critique_prompt_builder=build_gas_critique_prompt,
         )
-        item.update(explanation=explanation, confident=confident, loops_used=loops_used)
+        item.update(
+            explanation=explanation,
+            confident=confident,
+            loops_used=loops_used,
+            is_fallback=is_fallback,
+        )
+        if fallback_reason:
+            item["fallback_reason"] = fallback_reason
         item.setdefault("function", item.get("function_name", "contract scope"))
         explained.append(item)
     return explained

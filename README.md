@@ -385,6 +385,16 @@ If the configured LLM is unavailable, the application uses a deterministic
 offline explanation so the pipeline can still be tested. This fallback is not
 a substitute for a real security review.
 
+By default, the CLI now fails before static analysis when the configured LLM
+backend is unavailable. Use `--allow-offline-fallback` explicitly only for
+offline testing; generated findings and fixes are labeled as fallback output,
+and the evaluation harness rejects aggregate metrics from such runs.
+
+```bash
+python main.py --file contracts/reentrancy_example.sol \
+  --allow-offline-fallback
+```
+
 ## Offline RAG retrieval
 
 The CLI uses the local JSON knowledge indexes by default. This avoids trying
@@ -427,3 +437,6 @@ config.yaml             Runtime configuration
 - Whole-project analysis, automatic fixes, web UI, and automatic PR creation
   are not implemented. Gas checks are intentionally heuristic and require
   manual review for context-sensitive optimizations.
+- Front-running/MEV-style vulnerabilities are not reliably detected by this
+  tool, as they depend on transaction-ordering context that Slither's static
+  detectors do not analyze.

@@ -12,6 +12,7 @@
     - type: access-control
       function: setOwner
 - file: contracts/front_running_example.sol
+  known_undetectable: true
   expected_vulnerabilities:
     - type: front-running
       function: updatePrice

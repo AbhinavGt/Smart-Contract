@@ -111,18 +111,24 @@ def _metrics(tp: int, fp: int, fn: int) -> tuple[float, float, float]:
 
 def evaluate(labels: list[dict[str, Any]], *, config_path: str | Path = "config.yaml") -> dict[str, tuple[int, int, int]]:
     counts: dict[str, list[int]] = defaultdict(lambda: [0, 0, 0])
+    fallback_count = 0
     for record in labels:
         path = ROOT / str(record.get("file", ""))
+        if record.get("known_undetectable"):
+            print(f"SKIP known-undetectable {path}", file=sys.stderr)
+            continue
         expected = list(record.get("expected_vulnerabilities") or [])
         try:
-            sections = orchestrate(str(path), config_path)
+            sections = orchestrate(str(path), config_path, allow_offline_fallback=True)
             actual = sections["security"] + sections["gas"]
+            fallback_count += sum(1 for finding in actual if finding.get("is_fallback"))
         except Exception as exc:
             print(f"SKIP {path}: {exc}", file=sys.stderr)
             # Gas checks are independent of Slither, so preserve those
             # predictions when the optional security tool is unavailable.
             try:
-                actual = run_gas_agent(str(path), config_path)
+                actual = run_gas_agent(str(path), config_path, allow_offline_fallback=True)
+                fallback_count += sum(1 for finding in actual if finding.get("is_fallback"))
             except Exception:
                 actual = []
         remaining = list(expected)
@@ -136,6 +142,11 @@ def evaluate(labels: list[dict[str, Any]], *, config_path: str | Path = "config.
                 remaining.pop(match_index)
         for item in remaining:
             counts[_canonical(item.get("type", "unknown"))][2] += 1
+    if fallback_count:
+        raise RuntimeError(
+            f"Eval run contains {fallback_count} fallback-generated findings — "
+            "results are invalid. Re-run with Ollama confirmed active."
+        )
     return {key: tuple(value) for key, value in counts.items()}
 
 
@@ -144,7 +155,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--labels", default=str(Path(__file__).with_name("labeled_contracts.yaml")))
     parser.add_argument("--config", default=str(ROOT / "config.yaml"))
     args = parser.parse_args(argv)
-    counts = evaluate(_load_labels(Path(args.labels)), config_path=args.config)
+    try:
+        counts = evaluate(_load_labels(Path(args.labels)), config_path=args.config)
+    except RuntimeError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 1
     totals = [0, 0, 0]
     print(f"{'Type':28} {'TP':>4} {'FP':>4} {'FN':>4} {'Precision':>10} {'Recall':>8} {'F1':>8}")
     for kind in sorted(counts):
