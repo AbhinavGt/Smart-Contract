@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import logging
+import re
 from typing import Any, Callable
 
 from .llm import AnthropicClient, DeterministicLLMClient, LLMClient, LLMResult, OllamaClient
@@ -111,18 +112,24 @@ def _snippet(source_lines: list[str], lines: list[int], radius: int = 2) -> str:
 
 def parse_critique(critique: str) -> tuple[str, str, str | None]:
     """Parse the critic's fixed response; malformed output is conservatively uncertain."""
-    values: dict[str, str] = {}
-    for line in critique.splitlines():
-        key, separator, value = line.partition(":")
-        if separator and key.strip().upper() in {"VERDICT", "REASON", "MISSING_CONTEXT"}:
-            values[key.strip().upper()] = value.strip()
-    verdict = values.get("VERDICT", "").upper()
-    if verdict not in {"CONFIDENT", "UNCERTAIN"}:
-        verdict = "UNCERTAIN"
-    missing = values.get("MISSING_CONTEXT")
+    normalized = re.sub(r"\*\*(VERDICT|REASON|MISSING_CONTEXT):\*\*", r"\1:", critique, flags=re.IGNORECASE)
+    verdict_match = re.search(r"\bVERDICT:\s*(CONFIDENT|UNCERTAIN)\b", normalized, re.IGNORECASE)
+    reason_match = re.search(
+        r"\bREASON:\s*(.+?)(?=\n\s*(?:VERDICT|MISSING_CONTEXT):|\Z)",
+        normalized,
+        re.IGNORECASE | re.DOTALL,
+    )
+    missing_match = re.search(
+        r"\bMISSING_CONTEXT:\s*(.+?)(?=\n\s*(?:VERDICT|REASON):|\Z)",
+        normalized,
+        re.IGNORECASE | re.DOTALL,
+    )
+    verdict = verdict_match.group(1).upper() if verdict_match else "UNCERTAIN"
+    reason = reason_match.group(1).strip() if reason_match else "Critique response was incomplete."
+    missing = missing_match.group(1).strip() if missing_match else None
     if not missing or missing.lower() == "none":
         missing = None
-    return verdict, values.get("REASON", "Critique response was incomplete."), missing
+    return verdict, reason, missing
 
 
 def _llm_text(result: LLMResult | str) -> tuple[str, bool, str | None]:

@@ -75,6 +75,8 @@ Check the explanation against the actual code. Respond in this exact format:
 VERDICT: CONFIDENT or UNCERTAIN
 REASON: <one or two sentences>
 MISSING_CONTEXT: <what additional information, if any, would help verify this — e.g. "calling function" or "re-retrieve: integer overflow patterns" or "none">
+Use exactly these unformatted keys. Do not wrap VERDICT, REASON, or
+MISSING_CONTEXT in Markdown bold or any other formatting.
 """
 
 
@@ -153,6 +155,15 @@ Validate address inputs with a non-zero address check before using them.
         "",
     )
     return f"""You are fixing a security vulnerability in a Solidity function.
+
+CRITICAL SCOPE RESTRICTION: Output only the corrected version of the single
+function shown below. Do not declare a constructor, modifier, additional
+function, or state variable. Do not repeat any other contract element.
+If access control is needed, add an inline require inside this function using
+variables that already exist; do not define a new modifier.
+If this vulnerability cannot be fixed without changing another contract
+element, output exactly `SCOPE_EXCEEDED: <brief reason>` instead of a code
+fence.
 
 Original function:
 ```solidity

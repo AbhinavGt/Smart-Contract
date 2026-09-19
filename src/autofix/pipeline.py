@@ -43,6 +43,37 @@ def extract_code_block(llm_response: str, function_name: str | None = None) -> s
     return code
 
 
+def check_fix_scope(fixed_code: str, target_function_name: str) -> tuple[bool, str | None]:
+    """Reject declarations outside the one function being replaced."""
+    stripped = fixed_code.strip()
+    if stripped.startswith("SCOPE_EXCEEDED"):
+        return False, stripped
+    declarations = re.findall(
+        r"\b(function\s+\w+|constructor\s*\(|modifier\s+\w+)",
+        fixed_code,
+    )
+    function_declarations = [item for item in declarations if item.startswith("function")]
+    other_declarations = [item for item in declarations if not item.startswith("function")]
+    if other_declarations:
+        return False, (
+            f"Fix declares a new constructor or modifier ({other_declarations[0]}), "
+            "which exceeds single-function scope."
+        )
+    if len(function_declarations) > 1:
+        return False, (
+            f"Fix declares {len(function_declarations)} functions; expected exactly "
+            f"one ({target_function_name})."
+        )
+    if len(function_declarations) == 1 and not re.search(
+        rf"\bfunction\s+{re.escape(target_function_name)}\s*\(",
+        fixed_code,
+    ):
+        return False, f"Fix does not contain the target function '{target_function_name}'."
+    if len(function_declarations) == 0:
+        return False, f"Fix does not contain the target function '{target_function_name}'."
+    return True, None
+
+
 def generate_verified_fix(
     finding: dict[str, Any],
     code_snippet: str,
@@ -72,6 +103,14 @@ def generate_verified_fix(
     is_fallback = result.is_fallback if isinstance(result, LLMResult) else False
     fallback_reason = result.fallback_reason if isinstance(result, LLMResult) else None
     raw_fixed_code = result.text if isinstance(result, LLMResult) else str(result)
+    if raw_fixed_code.strip().startswith("SCOPE_EXCEEDED"):
+        return {
+            "status": "skipped",
+            "gate_failed": "scope",
+            "detail": raw_fixed_code.strip(),
+            "is_fallback": is_fallback,
+            "fallback_reason": fallback_reason,
+        }
     try:
         fixed_code = extract_code_block(raw_fixed_code, function_name)
     except ValueError as exc:
@@ -79,6 +118,15 @@ def generate_verified_fix(
             "status": "failed",
             "gate_failed": "extraction",
             "detail": str(exc),
+            "is_fallback": is_fallback,
+            "fallback_reason": fallback_reason,
+        }
+    in_scope, scope_reason = check_fix_scope(fixed_code, function_name)
+    if not in_scope:
+        return {
+            "status": "skipped",
+            "gate_failed": "scope",
+            "detail": scope_reason or "Fix exceeded single-function scope.",
             "is_fallback": is_fallback,
             "fallback_reason": fallback_reason,
         }
@@ -109,6 +157,15 @@ def generate_verified_fix(
                         "status": "failed",
                         "gate_failed": "extraction",
                         "detail": str(exc),
+                        "is_fallback": is_fallback,
+                        "fallback_reason": fallback_reason,
+                    }
+                in_scope, scope_reason = check_fix_scope(fixed_code, function_name)
+                if not in_scope:
+                    return {
+                        "status": "skipped",
+                        "gate_failed": "scope",
+                        "detail": scope_reason or "Fix exceeded single-function scope.",
                         "is_fallback": is_fallback,
                         "fallback_reason": fallback_reason,
                     }
